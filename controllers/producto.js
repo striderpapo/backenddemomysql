@@ -7,11 +7,12 @@ var path=require('path');
 const cloudinary = require('cloudinary').v2;
 var mysql = require('mysql2');
 var con = mysql.createConnection({
-	host     : 'localhost',
-	user     : 'root',
-	password : null,
-	database : 'demonodemysql'
+	 host     : "biosgvc6986ah0fdgsyv-mysql.services.clever-cloud.com",//'localhost',
+    user     : "u6ct9w1jqqti0onf",//'root',
+    password : "Eb6BoFN0xzFQLrsGUaT9",//null,
+    database : "biosgvc6986ah0fdgsyv"//'demonodemysql'
 });
+
 
 
 cloudinary.config({
