@@ -8,11 +8,18 @@ var bcrypt=require('bcryptjs');
 var jwt=require('jsonwebtoken');
 const https = require('https');
 var mysql = require('mysql2');
-var con = mysql.createConnection({
+/*var con = mysql.createConnection({
     host     : "biosgvc6986ah0fdgsyv-mysql.services.clever-cloud.com",//'localhost',
     user     : "u6ct9w1jqqti0onf",//'root',
     password : "Eb6BoFN0xzFQLrsGUaT9",//null,
     database : "biosgvc6986ah0fdgsyv"//'demonodemysql'
+});*/
+
+var con = mysql.createConnection({
+    host     : 'localhost',
+    user     : 'root',
+    password : null,
+    database : 'demonodemysql'
 });
 
 
@@ -175,33 +182,53 @@ console.log(usuario)
 });*/
 	},
 	async getUsuario(req,res){
+		console.log("llega aqui")
 		try {
 
 		var params=req.body;
 
-		var username = params.username.toLowerCase();;
-		var userpassword = params.password.toLowerCase();;
-
-			const userapp = await Usuario.findOne({username });
-
-			 if (userapp  && (await bcrypt.compare(userpassword, userapp.password))) {
-
+		var username = params.username.toLowerCase();
+		var userpassword = params.password.toLowerCase();
+		console.log("llego aqui 2")
+		console.log(userpassword)
+  var sql = "SELECT iduser,user,password FROM usuarios where user=?;";
+  console.log(sql)
+    con.query(sql, [username], async function (err, results) {
+    if (err) throw err;
+    console.log("all records showed");
+	if (results.length === 0) {
+    return res.status(401).send("Usuario no encontrado");
+  }
+  console.log(results[0].password)
+			// const userapp = await Usuario.findOne({username });
+//return res.status(200).send({result:results});
+const isMatch = await bcrypt.compare(userpassword, results[0].password);
+console.log(isMatch)
+			 if (results[0].user  && isMatch) {
+				console.log("llego aqui 3")
 			 	const token = jwt.sign(
-        {_id: userapp._id,username:userapp.username},
+        {_id: results[0].iduser,username:results[0].username},
         "Secret_key123",
         {}
       );
 
       // save user token
-      userapp.token = token;
+      //userapp.token = token;
       
-      await Usuario.findByIdAndUpdate(userapp._id,userapp,{new:true})
-      
+      //await Usuario.findByIdAndUpdate(userapp._id,userapp,{new:true})
+	   var sql = "UPDATE usuarios SET token = ? WHERE  iduser = ? and user=?";
+ 
+	  con.query(sql,[token,results[0].iduser,results[0].user],function (err, userStored) {
+    if (err) throw err;
+    console.log("1 record update");
+    console.log(userStored);
+    
       return res.status(200).send({token:token});
+  });
     }else{
     	return res.status(401).send("Unauthorized");
     }
-	
+	});
 } catch (err) {
     console.log(err);
   }
@@ -210,3 +237,13 @@ console.log(usuario)
 };
 
 module.exports=controller;
+
+
+	/*showMascota:function(req,res){
+  var sql = "SELECT * FROM mascotas;";
+  con.query(sql, function (err, pruebaStored) {
+    if (err) throw err;
+    console.log("all records showed");
+    return res.status(200).send({prueba:pruebaStored});
+  });
+	},*/
