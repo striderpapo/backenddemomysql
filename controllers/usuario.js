@@ -7,15 +7,16 @@ const cloudinary = require('cloudinary').v2;
 var bcrypt=require('bcryptjs');
 var jwt=require('jsonwebtoken');
 const https = require('https');
-var mysql = require('mysql2');
-var con = mysql.createConnection({
+const pool = require('../db');
+//var mysql = require('mysql2');
+/*var con = mysql.createConnection({
     host     : "biosgvc6986ah0fdgsyv-mysql.services.clever-cloud.com",//'localhost',
     user     : "u6ct9w1jqqti0onf",//'root',
     password : "Eb6BoFN0xzFQLrsGUaT9",//null,
     database : "biosgvc6986ah0fdgsyv"//'demonodemysql'
 });
 
-/*var con = mysql.createConnection({
+var con = mysql.createConnection({
     host     : 'localhost',
     user     : 'root',
     password : null,
@@ -24,7 +25,7 @@ var con = mysql.createConnection({
 
 
 var controller = {
-	saveUsuario:function(req,res){
+	/*saveUsuario:function(req,res){
 		console.log("llega aqui")
 		var usuario = new Usuario();
 
@@ -41,35 +42,12 @@ var controller = {
     );
 
    		usuario.token=token;
-		
-		/*usuario.save((err,usuarioStored)=>{
-			if(err) return res.status(500).send({message:"Error al guardar al usuario"});
-
-			if(!usuarioStored) return res.status(404).send({message:"No se ha podido guardar al usuario"});
-
-			return res.status(200).send({usuario:usuarioStored});
-		});*/
-
-
-	/*	usuario.save()
-		.then(function (usuarioStored) {
-  if(!usuarioStored) return res.status(404).send({message:"No se ha podido guardar al usuario"});
-  cloudinary.api.create_folder(usuarioStored._id, (error, result) => {
-  if (error) {
-    console.error('Error al crear la carpeta en Cloudinary:', error);
-  } else {
-    return res.status(200).send({usuario:usuarioStored});
-  }
-});
-})
-.catch(function (err) {
-  if(err) return res.status(500).send({message:"Error al guardar al usuario"});
-});*/
+	
 console.log("llegua aqui dos")
 console.log(usuario)
   //var sql = "INSERT INTO usuarios (user,password,token,facebookid) VALUES ('" + usuario.username + "','" + usuario.password+ "','" + usuario.token + "','" + usuario.facebook_id + "')";
  var sql = "INSERT INTO usuarios (user,password,token,facebookid) VALUES (?, ?, ?, ?)"; 
-  con.query(sql, [usuario.username, usuario.password, usuario.token, usuario.facebook_id], function (err, usuarioStored) {
+  pool.query(sql, [usuario.username, usuario.password, usuario.token, usuario.facebook_id], function (err, usuarioStored) {
     if (err) throw err;
 	const nuevoId = usuarioStored.insertId; // ← Aquí tienes el ID autoincremental
     console.log("1 record inserted, ID:", nuevoId);
@@ -87,7 +65,59 @@ console.log(usuario)
   }
 });
   });
-	},
+	},*/
+
+	saveUsuario: async function(req, res) {
+  console.log("llega aqui");
+
+  try {
+    const params = req.body;
+    const usuario = new Usuario();
+    usuario.username = params.username.toLowerCase();
+    usuario.facebook_id = null;
+
+    // Encriptamos password
+    usuario.password = bcrypt.hashSync(params.password, 10);
+
+    // Generamos token
+    const token = jwt.sign(
+      { _id: usuario._id, username: usuario.username },
+      "Secret_key123"
+    );
+    usuario.token = token;
+
+    console.log("llegua aqui dos");
+    console.log(usuario);
+
+    // Guardamos usuario en MySQL
+    const [result] = await pool.query(
+      "INSERT INTO usuarios (user,password,token,facebookid) VALUES (?, ?, ?, ?)",
+      [usuario.username, usuario.password, usuario.token, usuario.facebook_id]
+    );
+
+    const nuevoId = result.insertId;
+    console.log("1 record inserted, ID:", nuevoId);
+
+    // Creamos carpeta en Cloudinary
+    const folderName = `${nuevoId}-${usuario.username}`;
+    cloudinary.api.create_folder(folderName, (error, resultCloud) => {
+      if (error) {
+        console.error("Error al crear la carpeta en Cloudinary:", error);
+        return res.status(500).send({ error: "No se pudo crear carpeta en Cloudinary" });
+      } else {
+        console.log("Carpeta creada en Cloudinary:", resultCloud);
+        return res.status(200).send({
+          mensaje: "Usuario creado y carpeta en Cloudinary generada",
+          usuarioId: nuevoId
+        });
+      }
+    });
+
+  } catch (err) {
+    console.error("Error en saveUsuario:", err);
+    return res.status(500).send({ error: "Error en servidor" });
+  }
+},
 
     
 	saveUsuarioFace:function(req,res){
@@ -181,27 +211,26 @@ console.log(usuario)
   if(err) return res.status(500).send({message:"Error al guardar al usuario"});
 });*/
 	},
-	async getUsuario(req,res){
+	/*async getUsuario(req,res){
 		console.log("llega aqui")
 		try {
 
 		var params=req.body;
 
 		var username = params.username.toLowerCase();
-		var userpassword = params.password.toLowerCase();
+		var userpassword = params.password;//.toLowerCase();
 		console.log("llego aqui 2")
 		console.log(userpassword)
   var sql = "SELECT iduser,user,password FROM usuarios where user=?;";
   console.log(sql)
-    con.query(sql, [username], async function (err, results) {
+    pool.query(sql, [username], async function (err, results) {
     if (err) throw err;
     console.log("all records showed");
 	if (results.length === 0) {
     return res.status(401).send("Usuario no encontrado");
   }
   console.log(results[0].password)
-			// const userapp = await Usuario.findOne({username });
-//return res.status(200).send({result:results});
+
 const isMatch = await bcrypt.compare(userpassword, results[0].password);
 console.log(isMatch)
 			 if (results[0].user  && isMatch) {
@@ -211,14 +240,10 @@ console.log(isMatch)
         "Secret_key123",
         {}
       );
-
-      // save user token
-      //userapp.token = token;
-      
-      //await Usuario.findByIdAndUpdate(userapp._id,userapp,{new:true})
+	
 	   var sql = "UPDATE usuarios SET token = ? WHERE  iduser = ? and user=?";
  
-	  con.query(sql,[token,results[0].iduser,results[0].user],function (err, userStored) {
+	  pool.query(sql,[token,results[0].iduser,results[0].user],function (err, userStored) {
     if (err) throw err;
     console.log("1 record update");
     console.log(userStored);
@@ -232,7 +257,58 @@ console.log(isMatch)
 } catch (err) {
     console.log(err);
   }
-	},
+	},*/
+	async getUsuario(req, res) {
+  console.log("llega aqui");
+  try {
+    const params = req.body;
+    const username = params.username.toLowerCase();
+    const userpassword = params.password;
+
+    console.log("llego aqui 2");
+    console.log(userpassword);
+
+    // Consulta usando await (promesas)
+    const [results] = await pool.query(
+      "SELECT iduser, user, password FROM usuarios WHERE user = ?",
+      [username]
+    );
+
+    if (results.length === 0) {
+      return res.status(401).send("Usuario no encontrado");
+    }
+
+    console.log(results[0].password);
+
+    // Validamos contraseña
+    const isMatch =  bcrypt.compare(userpassword, results[0].password);
+    console.log(isMatch);
+
+    if (results[0].user && isMatch) {
+      console.log("llego aqui 3");
+
+      const token = jwt.sign(
+        { _id: results[0].iduser, username: results[0].user }, // Ojo, era `results[0].user`, no `results[0].username`
+        "Secret_key123",
+        {}
+      );
+
+      // Guardamos token
+      await pool.query(
+        "UPDATE usuarios SET token = ? WHERE iduser = ? AND user = ?",
+        [token, results[0].iduser, results[0].user]
+      );
+
+      return res.status(200).send({ token });
+    } else {
+      return res.status(401).send("Unauthorized");
+    }
+  } catch (err) {
+    console.log(err);
+    return res.status(500).send("Error en servidor");
+  }
+}
+
 
 };
 
